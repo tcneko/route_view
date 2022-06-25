@@ -1,0 +1,14 @@
+version: "3.7"
+services:
+  route_view_backend:
+    image: "route_view_backend:1.0.0"
+    network_mode: "host"
+    restart: "always"
+    environment:
+      - "TZ={{time_zone}}"
+      - "PYTHONUNBUFFERED=1"
+    command:
+      - "--host"
+      - "{{backend_listen_addr}}"
+      - "--port"
+      - "{{backend_listen_port}}"

@@ -1,0 +1,8 @@
+version: "3.7"
+services:
+  route_view_frontend:
+    image: "route_view_frontend:1.0.0"
+    network_mode: "host"
+    restart: "always"
+    environment:
+      - "TZ={{time_zone}}"

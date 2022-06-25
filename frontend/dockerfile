@@ -1,0 +1,10 @@
+FROM node:17-alpine as s1
+WORKDIR /root
+RUN npm install --save-dev @babel/core @babel/cli @babel/preset-env @babel/preset-react
+COPY src/ src/
+RUN npx babel src --out-dir dst/ --presets @babel/preset-react && cp src/route_view.html dst/
+
+FROM caddy:2.4.6-alpine as s2
+COPY --from=s1 /root/dst/ /opt/route_view/
+COPY static/ /opt/route_view/static/
+COPY etc/caddy/Caddyfile /etc/caddy/Caddyfile

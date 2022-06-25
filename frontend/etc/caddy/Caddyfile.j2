@@ -1,0 +1,12 @@
+{
+  admin off
+}
+
+:{{frontend_listen_port}} {
+  bind 127.0.0.1
+  rewrite /favicon.ico /static/favicon.ico
+  file_server * {
+    root /opt/route_view/
+    index route_view.html
+  }
+}
