@@ -2,8 +2,8 @@ FROM python:3.10.0-bullseye as s1
 
 MAINTAINER tcneko <tcneko@outlook.com>
 
-RUN python3 -m pip install --no-cache-dir --upgrade aiohttp fastapi ipaddress pydantic uvicorn[standard]
+RUN python3 -m pip install --no-cache-dir --upgrade aiohttp apscheduler fastapi ipaddress pydantic uvicorn[standard]
 COPY src/ /opt/route_view/
 WORKDIR /opt/route_view
 
-ENTRYPOINT [ "python3", "-m", "uvicorn", "route_view:app", "--host", "0.0.0.0", "--port", "5627"]
+ENTRYPOINT [ "python3", "-m", "uvicorn", "route_view:app"]

@@ -6,3 +6,8 @@ services:
     restart: "always"
     environment:
       - "TZ={{time_zone}}"
+    command:
+      - "-H"
+      - "{{backend_listen_addr}}"
+      - "-p"
+      - "{{frontend_listen_port}}"

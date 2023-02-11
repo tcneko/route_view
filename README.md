@@ -6,7 +6,7 @@ Verify that BGP route advertisements are as expected
 
 ### How to use
 
-##### Steps for backend container
+##### Build and run the backend container
 
 * Build the backend docker image
 
@@ -32,20 +32,15 @@ docker-compose up -d
 
 
 
-##### Steps for frontend container
+##### Build and run the frontend container
 
 * Build the frontend docker image
 
 ```bash
 cd .../route_view/frontend
-
-cd etc/caddy
-cp Caddyfile.j2 Caddyfile
-vim Caddyfile
-
-cd ../..
-mkdir static
-cd static
+cd src
+mkdir public
+cd public
 touch favicon.ico
 touch logo.png
 
@@ -70,7 +65,7 @@ docker-compose up -d
 
 
 
-##### Steps for reverse proxy web server
+#####  Run the reverse proxy web server
 
 * Create a web server configuration (the following is a sample configuration of Caddy)
 

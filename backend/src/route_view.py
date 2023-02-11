@@ -12,9 +12,16 @@ import aiohttp
 import asyncio
 import re
 import ipaddress
+import time
 
 from fastapi import FastAPI
 from pydantic import BaseModel
+
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+# Variable
+cache = {"ripe_lg_api_response": {}}
 
 
 # function
@@ -40,26 +47,39 @@ def extract_prefix(raw_prefix_list):
     return prefix_list
 
 
-def verify_task(prefix_list, viewpoint_asn, count_filter):
-    task_arg_validity_map = {"all": True, "prefix_list": True,
-                             "viewpoint_asn": True, "count_filter": True}
-    if len(prefix_list) == 0:
-        task_arg_validity_map["all"] = False
-        task_arg_validity_map["prefix_list"] = False
-    if type(viewpoint_asn) != int or viewpoint_asn < 0 or viewpoint_asn > 4294967295:
-        task_arg_validity_map["all"] = False
-        task_arg_validity_map["viewpoint_asn"] = False
-    if type(count_filter) != int or count_filter < 0 or count_filter > 300:
-        task_arg_validity_map["all"] = False
-        task_arg_validity_map["count_filter"] = False
-    return task_arg_validity_map
+def verify_form_route_view(prefix_list, viewpoint_asn, count_filter):
+    form_error = {"prefix_list_error": False, "viewpoint_asn_error": False, "count_filter_error": False,
+                  "prefix_list_error_tip": "", "viewpoint_asn_error_tip": "", "count_filter_error_tip": ""}
+    json_msg = {"status": "success"}
+    if len(prefix_list) <= 0:
+        form_error["prefix_list_error"] = True
+        form_error["prefix_list_error_tip"] = "Please enter at least one valid prefix, one per line"
+        json_msg = {"status": "fail", "detail": form_error}
+
+    if viewpoint_asn < 1 or viewpoint_asn > 4294967295:
+        form_error["viewpoint_asn_error"] = True
+        form_error["viewpoint_asn_error_tip"] = "Please input a valid ASN (1 ~ 4294967295)"
+        json_msg = {"status": "fail", "detail": form_error}
+
+    if count_filter < 0 or count_filter > 100:
+        form_error["count_filter_error"] = True
+        form_error["count_filter_error_tip"] = "Please input a valid number (0 ~ 100)"
+        json_msg = {"status": "fail", "detail": form_error}
+
+    return json_msg
 
 
 async def route_view_ripe_prefix(start_delay, prefix, viewpoint_asn, count_filter):
-    await asyncio.sleep(start_delay)
-    async with aiohttp.ClientSession() as session:
-        async with session.get("https://stat.ripe.net/data/looking-glass/data.json?resource=" + prefix) as response:
-            ri_map = await response.json()
+    if prefix in cache["ripe_lg_api_response"]:
+        ri_map = cache["ripe_lg_api_response"][prefix]["data"]
+    else:
+        await asyncio.sleep(start_delay)
+        async with aiohttp.ClientSession() as session:
+            async with session.get("https://stat.ripe.net/data/looking-glass/data.json?resource=" + prefix) as response:
+                ri_map = await response.json()
+        cache["ripe_lg_api_response"][prefix] = {
+            "expiration_timestamp": int(time.time())+120,
+            "data": ri_map}
     obs_asp_map = {}
     src_asn_list = []
     total_asp = 0
@@ -98,10 +118,32 @@ async def route_view_ripe(prefix_list, viewpoint_asn, count_filter):
         prefix = prefix_list[ix]
         task_list.append(route_view_ripe_prefix(
             start_delay, prefix, viewpoint_asn, count_filter))
-    return await asyncio.gather(*task_list)
+    try:
+        route_view_out_list = await asyncio.gather(*task_list)
+        json_msg = {"status": "success",
+                    "route_view_out_list": route_view_out_list}
+    except:
+        json_msg = {"status": "fail", "reason": "internal_error"}
+    return json_msg
+
+
+async def clean_up_cache():
+    cur_timestamp = int(time.time())
+    for cache_key in cache:
+        for item_key in list(cache[cache_key].keys()):
+            if cache[cache_key][item_key]["expiration_timestamp"] > cur_timestamp:
+                del cache[cache_key][item_key]
 
 
 app = FastAPI()
+
+scheduler = AsyncIOScheduler()
+
+
+@app.on_event("startup")
+async def task_notify_agent_exist():
+    scheduler.add_job(clean_up_cache, 'interval', seconds=30)
+    scheduler.start()
 
 
 class RouteViewBody(BaseModel):
@@ -111,17 +153,27 @@ class RouteViewBody(BaseModel):
 
 
 @ app.post("/api/v1/route_view")
-async def route_view(body: RouteViewBody):
+async def api_route_view(body: RouteViewBody):
+    # Extract & preprocess the form data
     prefix_list = extract_prefix(body.prefix_list)
     viewpoint_asn = body.viewpoint_asn
     count_filter = body.count_filter
-    task_arg_validity_map = verify_task(
+    # Verify the form data
+    json_msg = verify_form_route_view(
         prefix_list, body.viewpoint_asn, body.count_filter)
-    if task_arg_validity_map["all"]:
-        json_msg = {"event": "task_start",
-                    "prefix_list": prefix_list, "viewpoint_asn": viewpoint_asn, "count_filter": count_filter}
-        print(json_msg)
-        route_view_out_list = await route_view_ripe(prefix_list, body.viewpoint_asn, body.count_filter)
-        return {"event": "task_end", "route_view_out_list": route_view_out_list}
+    if json_msg["status"] != "success":
+        json_msg = {"status": "fail", "reason": "form_error",
+                    "detail": json_msg["detail"]}
+        return json_msg
+
+    # Api process
+    json_msg = {"event": "task_start",
+                "prefix_list": prefix_list, "viewpoint_asn": viewpoint_asn, "count_filter": count_filter}
+    print(json_msg)
+    json_msg = await route_view_ripe(prefix_list, viewpoint_asn, count_filter)
+    if json_msg["status"] == "success":
+        json_msg = {"status": "success",
+                    "route_view_out_list": json_msg["route_view_out_list"]}
     else:
-        return {"event": "task_arg_error", "task_arg_validity_map": task_arg_validity_map}
+        json_msg = {"status": "fail", "reason": json_msg["reason"]}
+    return json_msg
