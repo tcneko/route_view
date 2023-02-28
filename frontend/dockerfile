@@ -4,7 +4,7 @@ MAINTAINER tcneko <tcneko@outlook.com>
 
 WORKDIR /root/route_view
 COPY src/ /root/route_view/
-RUN npm install react react-dom next tailwindcss postcss autoprefixer daisyui
+RUN npm install react react-dom next sharp tailwindcss postcss autoprefixer daisyui
 RUN npx next telemetry disable \
     && npx next build
 

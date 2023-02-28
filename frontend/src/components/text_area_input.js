@@ -7,7 +7,7 @@ export default class TextAreaInput extends React.Component {
         <div className="basis-full">
           <label className="text-base">{this.props.title}</label>
         </div>
-        <div className="basis-full relative">
+        <div className="basis-full">
           <textarea
             name={this.props.name}
             className={

@@ -7,7 +7,7 @@ export default class NumberInput extends React.Component {
         <div className="basis-auto">
           <label className="text-base">{this.props.title}</label>
         </div>
-        <div className="basis-auto relative">
+        <div className="basis-auto">
           <input
             name={this.props.name}
             type="number"
